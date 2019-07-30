@@ -1,0 +1,986 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <!-- Use correct character set. -->
+    <meta charset="utf-8">
+    <!-- Tell IE to use the latest, best version. -->
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <!-- Make the application on mobile take up the full browser screen and disable user scaling. -->
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalabel=no">
+    <title>飞行测试</title>
+    <!--<script src="http://ynmap.cn/CesiumUnminified/Cesium.js"></script>-->
+    <script src="http://localhost:8070/Build/CesiumUnminified/Cesium.js"></script>
+    <script src="./ExtendCesium.js"></script>
+    <script src="./FileSaver.js"></script>
+    <style>
+        /*@import url(http://ynmap.cn/CesiumUnminified/Widgets/widgets.css);*/
+        @import url(http://localhost:8070/Build/CesiumUnminified/Widgets/widgets.css);
+
+        html, body, #cesiumContainer {
+            width: 100%;
+            height: 100%;
+            padding: 0;
+            margin: 0;
+            overflow: hidden;
+        }
+
+        .cesium-widget-credits {
+            display: none !important;
+        }
+
+        table {
+            color: white;
+        }
+
+        table span{
+            margin: 0 5px;
+            font-size: 12px;
+        }
+        input[type="text"] {
+            color: white;
+            outline:none;
+            background:transparent;
+            border:none;
+            outline:medium;
+        }
+        input[id="startIndex"] {
+            color: white;
+            border:1px solid #4aa1a0;
+            background-color: transparent;
+            overflow: hidden;
+            width: 40px;
+        }
+        input:focus {
+            color: white;
+            border:1px solid #4aa1a0;
+        }
+        /*input::selection{background:transparent; }
+        input::-moz-selection{background:transparent; }*/
+
+        /*input[type="text"]:checked{
+            background-color: #fe6d32;
+            border: 1px solid #73ffff;
+        }*/
+
+        /*input[type="text"]:checked::after {
+            position: absolute;
+            content: "";
+            width: 5px;
+            height: 10px;
+            top: 3px;
+            left: 6px;
+            border: 1px solid #fff;
+            border-top: none;
+            border-left: none;
+            transform: rotate(45deg)
+        }*/
+
+    </style>
+</head>
+<body>
+<div id="cesiumContainer"></div>
+
+<div id="panal" style="position: absolute;width:750px;height: 100%; top: 0;right: 0;background-color: rgba(42, 42, 42, 0.6);border: 1px solid #73ffff;float: right;z-index: 999999;">
+    <div id="pointControl" style="width: 100%;background-color: rgb(137, 181, 220);color: white;text-align: center;">
+        点位控制
+    </div>
+    <div style="width: 100%;height:calc(100% - 111px);">
+        <div style="width: 100%">
+            <input id="loadfile" type="file" value="导入" accept="text/plain" style="width: calc(100% - 70px);color: white;">
+            <input id="outputfile" type="button" value="导出" class="cesium-button" style="float: right;right: 10px;padding: 4px 12px;">
+        </div>
+        <hr>
+        <div id="pointControlPanal" style="height:calc(100% - 55px);overflow: auto;padding: 5px;">
+            <table>
+                <tbody data-bind="visible:!hasMarker">
+                    <tr >
+                        <td>
+                            <button type="button" class="cesium-button" title="添加"
+                                    data-bind="click: function() { addFirstMarker(); }">+
+                            </button>
+                        </td>
+                    </tr>
+                </tbody>
+                <tbody data-bind="foreach: markers">
+                <tr data-bind="style: {backgroundColor: id % 2===0 ? 'rgba(77,139,172,0.6)':'rgba(77,139,172,0.3)' }">
+                    <td><span data-bind="text:id"></span></td>
+                    <td>
+                        <button type="button" class="cesium-button" title="查看"
+                                data-bind="click: function() { $parent.viewMarker($data,$index()); }">view
+                        </button>
+                    </td>
+                    <td>
+                        <input type="text" style="width: 100px;" data-bind="value: coordinate.x, valueUpdate: 'input',attr: { name: id}"  oninput="changeX(this);">
+                        <!--<span contenteditable="true" data-bind="text: coordinate.x"></span>-->
+                    </td>
+                    <td>
+                        <input type="text" style="width: 100px;"  data-bind="value: coordinate.y, valueUpdate: 'input',attr: { name: id}" oninput="changeY(this);">
+                        <!--<span contenteditable="true" data-bind="text: coordinate.y"></span>-->
+                    </td>
+                    <td>
+                        <input type="text" style="width: 50px;"  data-bind="value: coordinate.z, valueUpdate: 'input',attr: { name: id}" oninput="changeZ(this);">
+                        <!--<span contenteditable="true" data-bind="text: coordinate.z"></span>-->
+                    </td>
+                    <td>
+                        <input type="text" style="width: 50px;"  data-bind="value: heading, valueUpdate: 'input',attr: { name: id}" oninput="changeHeading(this);">
+                        <!--<span contenteditable="true" data-bind="text: coordinate.z"></span>-->
+                    </td>
+                    <td>
+                        <input type="text" style="width: 50px;"  data-bind="value: pitch, valueUpdate: 'input',attr: { name: id}" oninput="changePitch(this);">
+                        <!--<span contenteditable="true" data-bind="text: coordinate.z"></span>-->
+                    </td>
+                    <td>
+                        <input type="text" style="width: 50px;"  data-bind="value: roll, valueUpdate: 'input',attr: { name: id}" oninput="changeRoll(this);">
+                        <!--<span contenteditable="true" data-bind="text: coordinate.z"></span>-->
+                    </td>
+                    <td>
+                        <input type="text" style="width: 130px;"  data-bind="value: time, valueUpdate: 'input',attr: { name: id}" onchange="changeT(this);">
+                    </td>
+                    <td>
+                        <button type="button" class="cesium-button" title="删除"
+                                data-bind="click: function() { $parent.deleteMarker($index()); }">-
+                        </button>
+                    </td>
+                    <td>
+                        <button type="button" class="cesium-button" title="插入"
+                                data-bind="click: function() { $parent.insertMarker($data,$index()); }">+
+                        </button>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div id="flyControl" style="width: 100%;background-color: rgb(137, 181, 220);color: white;text-align: center;">
+        飞行控制
+    </div>
+    <div id="flyControlPanal" style="width: 100%;">
+        <input id="exit" type="button" value="停止" class="cesium-button" style="margin: 20px;float: right;">
+        <input id="start" type="button" value="开始" class="cesium-button" style="margin: 20px;float: right;">
+        <input id="start1" type="button" value="跳转" class="cesium-button" style="margin: 20px;float: right;">
+        <label style="color: white;margin: 20px;float: right;"><input id="preview" type="checkbox" checked="checked">预演</label>
+        <label style="color: white;margin: 20px;float: right;"><input id="replayer" type="checkbox" checked="checked">循环</label>
+        <label style="color: white;margin: 20px;float: right;"><input id="startIndex" type="test" value="0">起点</label>
+        <input id="gatherData" type="button" value="视角采集" class="cesium-button" style="margin: 20px;float: right;">
+    </div>
+</div>
+
+<script>
+    var focusMarker=undefined;
+    var focusIndex=0;
+    var isPreview=true;
+    var isReplayer=true;
+
+    var terrainProvider=new Cesium.CesiumTerrainProvider({
+        url : 'http://182.247.253.75/stk-terrain/tiles/',
+        /*url : 'http://localhost/tiles',*/
+        requestWaterMask : true,
+        credit:"",
+        requestVertexNormals : true
+    });
+
+    var viewer = new Cesium.Viewer('cesiumContainer', {
+        terrainProvider : terrainProvider,
+        baseLayerPicker: false,
+        geocoder: false,
+        homeButton: false,
+        navigationHelpButton: false,
+        timeline: false,
+        animation: true,
+        sceneModePicker: false,
+        fullscreenButton: false
+    });
+
+    var handler = viewer.screenSpaceEventHandler;
+    var screenSpaceCameraController=viewer.scene.screenSpaceCameraController;
+
+    viewer.imageryLayers.removeAll();
+
+    viewer.camera.setView({
+        destination: Cesium.Cartesian3.fromDegrees(123.46387835908175, 34.4037510851303, 40080858.789247796),
+        orientation: {
+            heading: Cesium.Math.toRadians(338.7857766503062),
+            //pitch:Cesium.Math.toRadians(-30.844203876599106),
+            pitch: Cesium.Math.toRadians(-90),
+            roll: Cesium.Math.toRadians(359.93813529476006)
+        }
+    });
+
+    viewer.scene.screenSpaceCameraController.minimumZoomDistance = 10;//设置相机最小缩放距离,距离地表-1000米
+
+    var camera = viewer.camera;
+    var endUserOptions = Cesium.queryToObject(window.location.search.substring(1));
+
+    function saveCamera() {
+        var position = camera.positionCartographic;
+        var hpr = '';
+        if (Cesium.defined(camera.heading)) {
+            hpr = ',' + Cesium.Math.toDegrees(camera.heading).toFixed(2) + ',' + Cesium.Math.toDegrees(camera.pitch).toFixed(2) + ',' + Cesium.Math.toDegrees(camera.roll).toFixed(2);
+        }
+        endUserOptions.view = Cesium.Math.toDegrees(position.longitude).toFixed(8) + ',' + Cesium.Math.toDegrees(position.latitude).toFixed(8) + ',' + position.height.toFixed(2) + hpr;
+        history.replaceState(undefined, '', '?' + Cesium.objectToQuery(endUserOptions));
+    }
+
+    camera.moveEnd.addEventListener(function () {
+        saveCamera(camera);
+    });
+
+
+    var tdtImg_all = new Cesium.WebMapTileServiceImageryProvider({
+        url: "http://{s}.tianditu.com/img_w/wmts?service=wmts&request=GetTile&version=1.0.0&LAYER=img&tileMatrixSet=w&TileMatrix={TileMatrix}&TileRow={TileRow}&TileCol={TileCol}&style=default&format=tiles",
+        layer: "tdtImgBasicLayer",
+        style: "default",
+        subdomains:['t0','t1','t2','t3','t4','t5','t6','t7'],
+        format: "image/jpeg",
+        tileMatrixSetID: "GoogleMapsCompatible",
+        maximumLevel: 15,
+        credit:'云 S（2017）065号',
+        show: true
+    });
+
+    var ynImgMap= new Cesium.WebMapTileServiceImageryProvider({
+        url: "http://182.247.253.66:6080/arcgis/rest/services/TdtYn/tdtYnImg100cm84_2017/MapServer/tile/{TileMatrix}/{TileRow}/{TileCol}",
+        layer: "tdtYnImg100cm84_2017",
+        style: "default",
+        format: "image/png",
+        tileMatrixSetID: "GoogleMapsCompatible",
+        rectangle:new Cesium.Rectangle.fromDegrees(97, 20, 107, 30),
+        maximumLevel: 18,
+        credit:"",
+        show: true
+    });
+
+    var ynImgLabel=new Cesium.WebMapTileServiceImageryProvider({
+        url: "http://182.247.253.80:6080/arcgis/rest/services/TDTYN/tdtYnImgLable84/MapServer/tile/{TileMatrix}/{TileRow}/{TileCol}",
+        layer: "tdtYnImgLable84",
+        style: "default",
+        format: "image/png",
+        tileMatrixSetID: "GoogleMapsCompatible",
+        rectangle:new Cesium.Rectangle.fromDegrees(97, 20, 107, 30),
+        maximumLevel: 18,
+        credit:"",
+        show: true
+    });
+
+    viewer.imageryLayers.addImageryProvider(tdtImg_all);
+    viewer.imageryLayers.addImageryProvider(ynImgMap);
+    viewer.imageryLayers.addImageryProvider(ynImgLabel);
+
+
+    function addHours(time,hours) {
+        var arr=time.split(',');
+
+        arr[3]=parseInt(arr[3])+hours;
+
+        return arr.toString();
+    }
+    
+    function addMinutes(time,minutes) {
+        var tempArr=time.split(',');
+        var arr=tempArr;
+        var s=parseInt(tempArr[4])+minutes;
+        if(parseInt(tempArr[4])+minutes>=60){
+            s=parseInt(tempArr[4])+minutes-60;
+            arr=addHours(time,1).split(',');
+        }
+        arr[4]=s;
+
+        return arr.toString();
+    }
+
+    function addSeconds(time,seconds) {
+        var tempArr=time.split(',');
+        var arr=tempArr;
+        var s=parseInt(tempArr[5])+seconds;
+        if(parseInt(tempArr[5])+seconds>=60){
+            s=parseInt(tempArr[5])+seconds-60;
+            arr=addMinutes(time,1).split(',');
+        }
+        arr[5]=s;
+
+        return arr.toString();
+    }
+
+    function isLeapYear(year) {//是否是闰年
+        var a1=year%4===0;
+        var a2=year%100!==0;
+        var a3=year%400===0;
+
+        return (a1&&a2)||a3;
+    }
+    
+    function meanDate(left,right) {
+        var arr1=left.split(',');
+        var arr2=right.split(',');
+        var arr=[];
+        var ys=0;
+
+        var y=(parseInt(arr1[0])+ parseInt(arr2[0]))/2.0;
+        arr[0]=Math.floor(y);
+        ys=y-arr[0];
+
+        var M=(parseInt(arr1[1])+ parseInt(arr2[1]))/2.0+ys*12;
+        arr[1]=Math.floor(M);
+        ys=M-arr[1];
+
+        var d=(parseInt(arr1[2])+ parseInt(arr2[2]))/2.0+ys*31;
+        if(arr[1]===2){
+            if(isLeapYear(arr[0])){
+                d=(parseInt(arr1[2])+ parseInt(arr2[2]))/2.0+ys*29;
+            }else {
+                d=(parseInt(arr1[2])+ parseInt(arr2[2]))/2.0+ys*28;
+            }
+        }else if([2,4,6,9,11].indexOf(arr[1]>=0)) {
+            d = (parseInt(arr1[2]) + parseInt(arr2[2]) ) / 2.0+ ys * 30;
+        }else {
+            d=(parseInt(arr1[2])+ parseInt(arr2[2]))/2.0+ys*31;
+        }
+        arr[2]=Math.floor(d);
+        ys=d-arr[2];
+
+        var H=(parseInt(arr1[3])+ parseInt(arr2[3]))/2.0+ys*24;
+        arr[3]=Math.floor(H);
+        ys=H-arr[3];
+
+        var m=(parseInt(arr1[4])+ parseInt(arr2[4]))/2.0+ys*60;
+        arr[4]=Math.floor(m);
+        ys=m-arr[4];
+
+        var s=(parseInt(arr1[5])+ parseInt(arr2[5]))/2.0+ys*60;
+        arr[5]=Math.floor(s);
+
+        return arr.toString();
+    }
+    
+    
+    function munusDate(left,right) {
+        var arr1=left.split(',');
+        var arr2=right.split(',');
+
+        return (parseInt(arr1[3])-parseInt(arr2[3]))*3600+(parseInt(arr1[4])-parseInt(arr2[4]))*60+(parseInt(arr1[5])-parseInt(arr2[5]));
+    }
+
+
+    var viewModel = {
+        markers:[],
+        viewMarker:function(marker,index){
+            var coordinate=marker.coordinate;
+            var pos=Cesium.Cartesian3.fromDegrees(Number(coordinate.x),Number(coordinate.y),Number(coordinate.z));
+            viewer.camera.setView({
+                destination:pos,
+                orientation: {
+                    heading : Cesium.Math.toRadians(Number(marker.heading)), // east, default value is 0.0 (north)
+                    pitch : Cesium.Math.toRadians(Number(marker.pitch)),    // default value (looking down)
+                    roll : Cesium.Math.toRadians(Number(marker.roll))                             // default value
+                }
+            });
+        },
+        insertMarker:function (marker,index) {
+            var time=marker.time;
+            if(index===this.markers.length-1){
+                time=addSeconds(time,5);
+            }else {
+                var time1=this.markers[index].time;
+                var time2=this.markers[index+1].time;
+                
+                time=meanDate(time1,time2);
+            }
+            addMarker(marker.id+1,marker.coordinate,0,-90,0,time,index+1);
+            updateMarkers();
+        },
+        deleteMarker:function (index) {
+            this.markers.splice(index,1);
+            if(this.markers.length===0){
+                this.hasMarker=false;
+                focusMarker=undefined;
+            }
+            updateMarkers();
+        },
+        hasMarker:false
+    };
+    Cesium.knockout.track(viewModel);
+
+    function addMarker(id,coordinate,heading,pitch,roll,time,index) {
+        var marker={};
+        marker.id=id;
+        marker.coordinate=coordinate;
+        marker.heading=heading;
+        marker.pitch=pitch;
+        marker.roll=roll;
+        marker.time=time;
+        Cesium.knockout.track(marker, ['id', 'coordinate','heading','pitch','roll', 'time']);
+
+        if(Cesium.defined(index)){
+            viewModel.markers.splice(index,0,marker);
+        }else {
+            viewModel.markers.push(marker);
+            focusIndex=viewModel.markers.length-1;
+        }
+        viewModel.hasMarker=true;
+
+    }
+
+
+    function updateMarkers(){
+        for(var i=0;i<viewModel.markers.length;i++){
+            viewModel.markers[i].id=i+1;
+            var xyz=viewModel.markers[i].coordinate;
+            viewModel.markers[i].coordinate={x:xyz.x,y:xyz.y,z:xyz.z};
+            viewModel.markers[i].heading=viewModel.markers[i].heading;
+            viewModel.markers[i].pitch=viewModel.markers[i].pitch;
+            viewModel.markers[i].roll=viewModel.markers[i].roll;
+            viewModel.markers[i].time=viewModel.markers[i].time;
+        }
+    }
+
+    function changeX(element) {
+        if(element.value.length*7.5-3>element.parentNode.clientWidth){
+            element.style.width=element.value.length*7.5-5+'px';
+        }
+
+        var index=Number(element.name)-1;
+        var coordinate=viewModel.markers[index].coordinate;
+        try {
+            var value=Number(element.value);
+            if(value<-180 || value>180||isNaN(value)){
+                alert('第'+index+'条中X值不合法！');
+                return;
+            }
+            var pos=Cesium.Cartesian3.fromDegrees(value,Number(coordinate.y),Number(coordinate.z));
+            viewer.camera.setView({
+                destination:pos,
+                orientation: {
+                    heading : Cesium.Math.toRadians(Number(viewModel.markers[index].heading)), // east, default value is 0.0 (north)
+                    pitch : Cesium.Math.toRadians(Number(viewModel.markers[index].pitch)),    // default value (looking down)
+                    roll : Cesium.Math.toRadians(Number(viewModel.markers[index].roll))                             // default value
+                }
+            });
+        }catch (e) {
+            alert('第'+element.name+'条中X值不合法！');
+            return;
+        }
+    }
+
+    
+    function changeY(element) {
+        if(element.value.length*7.5-3>element.parentNode.clientWidth){
+            element.style.width=element.value.length*7.5-5+'px';
+        }
+        var index=Number(element.name)-1;
+        var coordinate=viewModel.markers[index].coordinate;
+        try {
+            var value=Number(element.value);
+            if(value<-90 || value>90||isNaN(value)){
+                alert('第'+index+'条中Y值不合法！');
+                return;
+            }
+            var pos=Cesium.Cartesian3.fromDegrees(Number(coordinate.x),value,Number(coordinate.z));
+            viewer.camera.setView({
+                destination:pos,
+                orientation: {
+                    heading : Cesium.Math.toRadians(Number(viewModel.markers[index].heading)), // east, default value is 0.0 (north)
+                    pitch : Cesium.Math.toRadians(Number(viewModel.markers[index].pitch)),    // default value (looking down)
+                    roll : Cesium.Math.toRadians(Number(viewModel.markers[index].roll))                             // default value
+                }
+            });
+        }catch (e) {
+            alert('第'+index+'条中Y值不合法！');
+            return;
+        }
+    }
+    function changeZ(element) {
+        if(element.value.length*7.5-3>element.parentNode.clientWidth){
+            element.style.width=element.value.length*7.5-5+'px';
+        }
+        var index=Number(element.name)-1;
+        var coordinate=viewModel.markers[index].coordinate;
+        try {
+            var value=Number(element.value);
+            if(isNaN(value)){
+                alert('第'+index+'条中Z值不合法！');
+                return;
+            }
+            var pos=Cesium.Cartesian3.fromDegrees(Number(coordinate.x),Number(coordinate.y),value);
+            viewer.camera.setView({
+                destination:pos,
+                orientation: {
+                    heading : Cesium.Math.toRadians(Number(viewModel.markers[index].heading)), // east, default value is 0.0 (north)
+                    pitch : Cesium.Math.toRadians(Number(viewModel.markers[index].pitch)),    // default value (looking down)
+                    roll : Cesium.Math.toRadians(Number(viewModel.markers[index].roll))                             // default value
+                }
+            });
+        }catch (e) {
+            alert('第'+index+'条中Z值不合法！');
+            return;
+        }
+    }
+
+    function changeHeading(element) {
+        var index=Number(element.name)-1;
+        var coordinate=viewModel.markers[index].coordinate;
+        try {
+            var value=Number(element.value);
+            if(isNaN(value)){
+                alert('第'+index+'条中Heading值不合法！');
+                return;
+            }
+            var pos=Cesium.Cartesian3.fromDegrees(Number(coordinate.x),Number(coordinate.y),Number(coordinate.z));
+            viewer.camera.setView({
+                destination:pos,
+                orientation: {
+                    heading : Cesium.Math.toRadians(value), // east, default value is 0.0 (north)
+                    pitch : Cesium.Math.toRadians(Number(viewModel.markers[index].pitch)),    // default value (looking down)
+                    roll : Cesium.Math.toRadians(Number(viewModel.markers[index].roll))                             // default value
+                }
+            });
+        }catch (e) {
+            alert('第'+index+'条中Heading值不合法！');
+            return;
+        }
+    }
+    function changePitch(element) {
+        var index=Number(element.name)-1;
+        var coordinate=viewModel.markers[index].coordinate;
+        try {
+            var value=Number(element.value);
+            if(isNaN(value)){
+                alert('第'+index+'条中Pitch值不合法！');
+                return;
+            }
+            var pos=Cesium.Cartesian3.fromDegrees(Number(coordinate.x),Number(coordinate.y),Number(coordinate.z));
+            viewer.camera.setView({
+                destination:pos,
+                orientation: {
+                    heading : Cesium.Math.toRadians(Number(viewModel.markers[index].heading)), // east, default value is 0.0 (north)
+                    pitch : Cesium.Math.toRadians(value),    // default value (looking down)
+                    roll : Cesium.Math.toRadians(Number(viewModel.markers[index].roll))                             // default value
+                }
+            });
+        }catch (e) {
+            alert('第'+index+'条中Pitch值不合法！');
+            return;
+        }
+    }
+    function changeRoll(element) {
+        var index=Number(element.name)-1;
+        var coordinate=viewModel.markers[index].coordinate;
+        try {
+            var value=Number(element.value);
+            if(isNaN(value)){
+                alert('第'+index+'条中Roll值不合法！');
+                return;
+            }
+            var pos=Cesium.Cartesian3.fromDegrees(Number(coordinate.x),Number(coordinate.y),Number(coordinate.z));
+            viewer.camera.setView({
+                destination:pos,
+                orientation: {
+                    heading : Cesium.Math.toRadians(Number(viewModel.markers[index].heading)), // east, default value is 0.0 (north)
+                    pitch : Cesium.Math.toRadians(Number(viewModel.markers[index].pitch)),    // default value (looking down)
+                    roll : Cesium.Math.toRadians(value)                             // default value
+                }
+            });
+        }catch (e) {
+            alert('第'+index+'条中Roll值不合法！');
+            return;
+        }
+    }
+
+    function changeT(element) {
+        if(element.value.length*7.5-5>element.parentNode.clientWidth){
+            element.style.width=element.value.length*7.5-7+'px';
+        }
+        var index=Number(element.name)-1;
+        var n=viewModel.markers.length;
+        try {
+            var value=element.value;
+            var time=initDate(value);
+            if(index===0){
+                if(n>1){
+                    var time2=initDate(viewModel.markers[index+1].time);
+                    if(time2<=time){
+                        alert('第'+index+'条中time值必须小于下一行的值！');
+                    }
+                }
+            }else {
+                if(index===n-1){
+                    var time1=initDate(viewModel.markers[index-1].time);
+                    if(time1>=time){
+                        alert('第'+index+'条中time值必须大于上一行的值！');
+                    }
+                }else {
+                    var time1=initDate(viewModel.markers[index-1].time);
+                    var time2=initDate(viewModel.markers[index+1].time);
+                    if(time1>=time || time2<=time){
+                        alert('第'+index+'条中time值必须介于上一行和下一行之间！');
+                    }
+                }
+            }
+        }catch (e) {
+            alert('第'+element.name+'条中time值不合法！');
+            return;
+        }
+
+    }
+
+    function clearMarkers(){
+        viewModel.markers=[];
+        viewModel.hasMarker=false;
+    }
+
+    
+    Cesium.knockout.applyBindings(viewModel, document.getElementById('pointControlPanal'));
+
+
+    function initDate(str) {
+        var arr=str.split(',');
+        var year=parseInt(arr[0]);
+        var month=parseInt(arr[1]);
+        var day=parseInt(arr[2]);
+        var hours=parseInt(arr[3]);
+        var minutes=parseInt(arr[4]);
+        var seconds=parseInt(arr[5]);
+
+        return new Date(year,month,day,hours,minutes,seconds);
+    }
+
+    document.getElementById('loadfile').onchange=function(){
+        viewModel.markers=[];
+        var file = this.files[0];
+        var reader = new FileReader();
+        reader.onload = function()
+        {
+            var str=this.result.replace(/\n/g,';');
+            var markers=str.split(';');
+            for(var i=0;i<markers.length;i++){
+                var value=markers[i].split('|');
+                if(markers[i]===""){
+                    return;
+                }
+                addMarker(value[0],{x:value[1],y:value[2],z:value[3]},value[4],value[5],value[6],value[7]);
+            }
+        };
+        reader.readAsText(file);
+        document.getElementById('loadfile').value='';
+        //document.getElementById('loadfile').clone().replaceAll(loadFileInput=this);
+        if(Cesium.defined(timeAnim)){
+            viewer.clock.onTick.removeEventListener(timeAnim);
+        }
+    };
+
+    document.getElementById('outputfile').onclick=function(){
+        var strContent="";
+        for(var i=0;i< viewModel.markers.length;i++){
+            strContent+=viewModel.markers[i].id+"|";
+            strContent+=viewModel.markers[i].coordinate.x+"|";
+            strContent+=viewModel.markers[i].coordinate.y+"|";
+            strContent+=viewModel.markers[i].coordinate.z+"|";
+            strContent+=viewModel.markers[i].heading+"|";
+            strContent+=viewModel.markers[i].pitch+"|";
+            strContent+=viewModel.markers[i].roll+"|";
+            strContent+=viewModel.markers[i].time+"\r\n";
+        }
+
+        var blob = new Blob([strContent], {type: "text/plain;charset=utf-8"});
+        saveAs(blob, "导出轨迹.txt");
+    };
+
+
+    document.getElementById('replayer').onclick=function(e){
+        if(e.target.checked){
+            isReplayer=true;
+        }else {
+            isReplayer=false;
+        }
+    };
+
+    document.getElementById('preview').onclick=function(e){
+        if(e.target.checked){
+            isPreview=true;
+        }else {
+            isPreview=false;
+        }
+    };
+
+
+    var timeAnim=undefined;
+    document.addEventListener(Cesium.Fullscreen.changeEventName, function () {
+        if (Cesium.Fullscreen.fullscreen) {
+            document.getElementById('panal').style.display='none';
+        }else {
+            document.getElementById('panal').style.display='block';
+        }
+    });
+    document.getElementById('start1').onclick = function (e) {
+        var heading=Number(viewModel.markers[0].heading);
+        var pitch=Number(viewModel.markers[0].pitch);
+        var roll=Number(viewModel.markers[0].roll);
+
+        var coordinate=viewModel.markers[0].coordinate;
+        var pos=Cesium.Cartesian3.fromDegrees(Number(coordinate.x),Number(coordinate.y),Number(coordinate.z));
+        var time=0;
+        var tempIndex=0;
+        function flyTo() {
+            tempIndex=tempIndex+1;
+            if(tempIndex<=viewModel.markers.length-1){
+
+                heading=Number(viewModel.markers[tempIndex].heading);
+                pitch=Number(viewModel.markers[tempIndex].pitch);
+                roll=Number(viewModel.markers[tempIndex].roll);
+
+                coordinate=viewModel.markers[tempIndex].coordinate;
+                pos=Cesium.Cartesian3.fromDegrees(Number(coordinate.x),Number(coordinate.y),Number(coordinate.z));
+                time=munusDate(viewModel.markers[tempIndex].time,viewModel.markers[tempIndex-1].time);
+                viewer.camera.flyTo({
+                    destination : pos,
+                    orientation: {
+                        heading : Cesium.Math.toRadians(heading), // east, default value is 0.0 (north)
+                        pitch : Cesium.Math.toRadians(pitch),    // default value (looking down)
+                        roll : Cesium.Math.toRadians(roll)                             // default value
+                    },
+                    duration:time,
+                    complete:function () {
+                        flyTo();
+                    }
+                });
+            }
+        }
+
+
+        viewer.camera.flyTo({
+            destination : pos,
+            orientation: {
+                heading : Cesium.Math.toRadians(heading), // east, default value is 0.0 (north)
+                pitch : Cesium.Math.toRadians(pitch),    // default value (looking down)
+                roll : Cesium.Math.toRadians(roll)                             // default value
+            },
+            duration:2.0
+        });
+        setTimeout(function () {
+            flyTo();
+        },3000)
+    };
+
+    var tempTimeValue=undefined;
+    var currentIndex=0;
+    var heading=0;
+    var pitch=-90;
+    var roll=0;
+    var coordinate={x:0,y:0,z:0};
+    var position=undefined;
+
+    var startIndex=0;
+
+    function flying(clock){
+        if(clock.currentTime.equalsEpsilon(Cesium.JulianDate.fromDate(initDate(viewModel.markers[viewModel.markers.length - 1].time)), 0.02* clock.multiplier)){
+            if(isReplayer){
+                startIndex=Number(document.getElementById('startIndex').value);
+
+                var start=Cesium.JulianDate.fromDate(initDate(viewModel.markers[startIndex].time));
+                var stop=Cesium.JulianDate.fromDate(initDate(viewModel.markers[viewModel.markers.length-1].time));
+
+                viewer.clock.startTime =start.clone();
+                viewer.clock.stopTime = stop.clone();
+                viewer.clock.currentTime = start.clone();
+                viewer.clock.clockRange = Cesium.ClockRange.LOOP_STOP; //Loop at the end
+                viewer.clock.multiplier = 1;
+
+                tempTimeValue=undefined;
+                currentIndex=startIndex;
+
+                heading=Number(viewModel.markers[startIndex].heading);
+                pitch=Number(viewModel.markers[startIndex].pitch);
+                roll=Number(viewModel.markers[startIndex].roll);
+
+                coordinate=viewModel.markers[startIndex].coordinate;
+                position=Cesium.Cartesian3.fromDegrees(Number(coordinate.x),Number(coordinate.y),Number(coordinate.z));
+
+                viewer.camera.setView({
+                    destination : position,
+                    orientation: {
+                        heading : Cesium.Math.toRadians(heading), // east, default value is 0.0 (north)
+                        pitch : Cesium.Math.toRadians(pitch),    // default value (looking down)
+                        roll : Cesium.Math.toRadians(roll)                             // default value
+                    }
+                });
+            }else {
+                try {
+                    viewer.clock.onTick.removeEventListener(flying);
+                }catch (e) {
+
+                }
+            }
+        }
+        var currentTimeValue = Date.now();
+        if (!Cesium.defined(tempTimeValue) || currentTimeValue - tempTimeValue > 50) {
+            for (var i = currentIndex; i < viewModel.markers.length; i++) {
+                if (clock.currentTime.equalsEpsilon(Cesium.JulianDate.fromDate(initDate(viewModel.markers[i].time)), 0.02* clock.multiplier)) {
+                    currentIndex = i;
+                    saveCamera();
+                    tempTimeValue = currentTimeValue;
+                    break;
+                }
+            }
+        }
+        console.log(currentIndex);
+
+        if (currentIndex < viewModel.markers.length - 1) {
+            var d = munusDate(viewModel.markers[currentIndex + 1].time, viewModel.markers[currentIndex].time) / (0.02 * clock.multiplier);
+
+            var dd=(Number(viewModel.markers[currentIndex + 1].heading) - Number(viewModel.markers[currentIndex].heading));
+            var ddd = dd / d;
+            if(Math.abs(dd)>180){
+                ddd = (360-Math.abs(dd)) / d;
+                if (dd<0) {
+                    heading = (heading + ddd)>360?(heading + ddd)-360:heading + ddd;
+                }else {
+                    heading = (heading - ddd)<0?360+(heading - ddd):heading - ddd;
+                }
+            }else {
+                if (Math.abs(heading - Number(viewModel.markers[currentIndex + 1].heading)) > ddd) {
+                    heading = heading + ddd;
+                }
+            }
+
+            dd=(Number(viewModel.markers[currentIndex + 1].pitch) - Number(viewModel.markers[currentIndex].pitch));
+            ddd =  dd/ d;
+            if (Math.abs(pitch - Number(viewModel.markers[currentIndex + 1].pitch)) > ddd) {
+                pitch = pitch + ddd;
+            }
+
+            dd=(Number(viewModel.markers[currentIndex + 1].roll) - Number(viewModel.markers[currentIndex].roll));
+            ddd = dd / d;
+            if(Math.abs(dd)>180){
+                ddd = (360-Math.abs(dd)) / d;
+                if (dd<0) {
+                    roll = (roll + ddd)>360?(roll + ddd)-360:roll + ddd;
+                }else {
+                    roll = (roll - ddd)<0?360+(roll - ddd):roll - ddd;
+                }
+            }else {
+                if (Math.abs(roll - Number(viewModel.markers[currentIndex + 1].roll)) > ddd) {
+                    roll = roll + ddd;
+                }
+            }
+
+            var coordinate1=viewModel.markers[currentIndex].coordinate;
+            var coordinate2=viewModel.markers[currentIndex+1].coordinate;
+            var position1=Cesium.Cartesian3.fromDegrees(Number(coordinate1.x),Number(coordinate1.y),Number(coordinate1.z));
+            var position2=Cesium.Cartesian3.fromDegrees(Number(coordinate2.x),Number(coordinate2.y),Number(coordinate2.z));
+
+            var distances = {
+                x : (position2.x - position1.x)/d,
+                y : (position2.y - position1.y)/d,
+                z : (position2.z - position1.z)/d
+            };
+
+            position=new Cesium.Cartesian3(position.x+distances.x,position.y+distances.y,position.z+distances.z);
+
+        }
+
+
+        //viewer.camera.lookAt(postion, new Cesium.HeadingPitchRange(Cesium.Math.toRadians(heading), Cesium.Math.toRadians(pitch), postion.z));
+
+
+
+        viewer.camera.setView({
+                    destination: position,
+                    orientation: {
+                        heading: Cesium.Math.toRadians(heading), // east, default value is 0.0 (north)
+                        pitch: Cesium.Math.toRadians(pitch),    // default value (looking down)
+                        roll: Cesium.Math.toRadians(roll)                             // default value
+                    }
+                });
+    }
+
+
+    document.getElementById('start').onclick = function (e) {
+        try {
+            viewer.clock.onTick.removeEventListener(flying);
+        }catch (e) {
+
+        }
+
+        if (viewModel.markers.length>=2) {
+            if(!isPreview){
+                Cesium.Fullscreen.requestFullscreen(e.target);
+                document.getElementById('panal').style.display='none';
+            }
+
+            startIndex=Number(document.getElementById('startIndex').value);
+
+            heading=Number(viewModel.markers[startIndex].heading);
+            pitch=Number(viewModel.markers[startIndex].pitch);
+            roll=Number(viewModel.markers[startIndex].roll);
+
+
+            coordinate=viewModel.markers[startIndex].coordinate;
+            position=Cesium.Cartesian3.fromDegrees(Number(coordinate.x),Number(coordinate.y),Number(coordinate.z));
+
+            viewer.camera.flyTo({
+                destination : position,
+                orientation: {
+                    heading : Cesium.Math.toRadians(heading), // east, default value is 0.0 (north)
+                    pitch : Cesium.Math.toRadians(pitch),    // default value (looking down)
+                    roll : Cesium.Math.toRadians(roll)                             // default value
+                },
+                duration:2.0
+            });
+
+            setTimeout(function () {
+                var start=Cesium.JulianDate.fromDate(initDate(viewModel.markers[startIndex].time));
+                var stop=Cesium.JulianDate.fromDate(initDate(viewModel.markers[viewModel.markers.length-1].time));
+
+                viewer.clock.startTime =start.clone();
+                viewer.clock.stopTime = stop.clone();
+                viewer.clock.currentTime = start.clone();
+                viewer.clock.clockRange = Cesium.ClockRange.LOOP_STOP; //Loop at the end
+                viewer.clock.multiplier = 1;
+
+                tempTimeValue=undefined;
+                currentIndex=startIndex;
+
+                viewer.clock.onTick.addEventListener(flying);
+            },3000)
+        }
+    };
+
+    document.getElementById('gatherData').onclick =function(e){
+        var position = viewer.camera.positionCartographic;
+        if (Cesium.defined(viewer.camera.heading)) {
+            var x=Cesium.Math.toDegrees(position.longitude).toFixed(8);
+            var y= Cesium.Math.toDegrees(position.latitude).toFixed(8);
+            var z=position.height.toFixed(2);
+
+            var heading=Cesium.Math.toDegrees(viewer.camera.heading).toFixed(2);
+            var pitch=Cesium.Math.toDegrees(viewer.camera.pitch).toFixed(2);
+            var roll=Cesium.Math.toDegrees(viewer.camera.roll).toFixed(2);
+            var time="2017,8,22,18,54,30";
+            var n=viewModel.markers.length;
+            if(n>0){
+                time=addSeconds(viewModel.markers[n-1].time,5);
+            }
+
+            addMarker(n,{
+                x:x,
+                y:y,
+                z:z
+            },heading,pitch,roll,time);
+        }
+
+    };
+
+    document.getElementById('exit').onclick = function (e) {
+        //viewModel.markers=[];
+        //viewModel.hasMarker=false;
+
+        try {
+            viewer.clock.onTick.removeEventListener(flying);
+        }catch (e) {
+
+        }
+    };
+
+</script>
+</body>
+</html>
